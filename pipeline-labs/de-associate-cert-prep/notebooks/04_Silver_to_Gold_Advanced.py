@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # Notebook 04: Silver to Gold - Advanced Transformations
 # MAGIC
@@ -122,21 +126,20 @@ sales_silver.printSchema()
 # TODO: Create daily sales summary
 
 daily_sales_summary = sales_silver \
-    .withColumn("sale_date", F.to_date(  # TODO: convert order_timestamp
-    .groupBy(   # TODO: group by sale_date and category
+    .withColumn("sale_date", F.to_date("order_timestamp")) \
+    .groupBy("sale_date", "category") \
     .agg(
-        # TODO: Add aggregation functions
-
-
-
-
+        F.sum("total_amount").alias("total_revenue"),
+        F.countDistinct("order_id").alias("order_count"),
+        F.countDistinct("customer_id").alias("unique_customers"),
+        F.sum("quantity").alias("total_units_sold")
     )
 
 # TODO: Add calculated metrics
 daily_sales_summary = daily_sales_summary \
-    .withColumn("avg_order_value",   # TODO: calculate
-    .withColumn("revenue_per_customer",   # TODO: calculate
-    .withColumn("units_per_order",   # TODO: calculate
+    .withColumn("avg_order_value", F.col("total_revenue") / F.col("order_count")) \
+    .withColumn("revenue_per_customer", F.col("total_revenue") / F.col("unique_customers")) \
+    .withColumn("units_per_order", F.col("total_units_sold") / F.col("order_count")) \
 
 display(daily_sales_summary.orderBy("sale_date", "category"))
 
@@ -192,20 +195,24 @@ display(daily_sales_summary.orderBy("sale_date", "category"))
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 # ✏️ STUDENT EXERCISE
 # TODO: Add rolling window calculations
-
+day_number = F.datediff(F.col("sale_date"), F.lit("1970-01-01").cast("date"))
 # Create window specifications
-window_7day = Window.partitionBy(   # TODO: add partitionBy, orderBy (day number), rangeBetween
+window_7day = Window.partitionBy("category").orderBy(day_number).rangeBetween(-6, 0)   # TODO: add partitionBy, orderBy (day number), rangeBetween
 
-window_30day = Window.partitionBy(   # TODO: add partitionBy, orderBy (day number), rangeBetween
+window_30day = Window.partitionBy("category").orderBy(day_number).rangeBetween(-29, 0)   # TODO: add partitionBy, orderBy (day number), rangeBetween
 
 # Calculate rolling metrics
 daily_sales_enriched = daily_sales_summary \
-    .withColumn("revenue_7day_avg",   # TODO: 7-day avg of total_revenue
-    .withColumn("revenue_30day_avg",   # TODO: 30-day avg of total_revenue
-    .withColumn("orders_7day_total",   # TODO: 7-day sum of order_count
-    .withColumn("orders_30day_total",   # TODO: 30-day sum of order_count
+    .withColumn("revenue_7day_avg", F.avg("total_revenue").over(window_7day)) \
+    .withColumn("revenue_30day_avg", F.avg("total_revenue").over(window_30day)) \
+    .withColumn("orders_7day_total", F.sum("order_count").over(window_7day)) \
+    .withColumn("orders_30day_total", F.sum("order_count").over(window_30day)) \
 
 display(daily_sales_enriched.orderBy("sale_date", "category").limit(20))
 
@@ -338,21 +345,20 @@ as_of_date = sales_silver.agg(F.max(F.to_date("order_timestamp"))).first()[0]
 customer_ltv = sales_silver.filter(F.col("customer_name") != "Unknown customer") \
     .groupBy("customer_id", "customer_name", "loyalty_tier") \
     .agg(
-        # TODO: Add aggregations
-
-
-
-
-
-
+        F.sum("total_amount").alias("total_spend"),
+        F.countDistinct("order_id").alias("total_orders"),
+        F.min(F.to_date("order_timestamp")).alias("first_purchase_date"),
+        F.max(F.to_date("order_timestamp")).alias("last_purchase_date"),
+        F.sum("quantity").alias("total_item_purchased"),
+        F.countDistinct("category").alias("categories_purchased")
     )
 
 # TODO: Add avg_order_value and the time-based metrics
 customer_ltv = customer_ltv \
-    .withColumn("avg_order_value",   # TODO
-    .withColumn("days_since_first_purchase",   # TODO
-    .withColumn("days_since_last_purchase",   # TODO (this is Recency!)
-    .withColumn("customer_tenure_days",   # TODO
+    .withColumn("avg_order_value", F.col("total_spend") / F.col("total_orders")) \
+    .withColumn("days_since_first_purchase", F.datediff(F.lit(as_of_date), F.col("first_purchase_date"))) \
+    .withColumn("days_since_last_purchase", F.datediff(F.lit(as_of_date), F.col("last_purchase_date"))) \
+    .withColumn("customer_tenure_days", F.datediff(F.col("last_purchase_date"), F.col("first_purchase_date")))
 
 display(customer_ltv.orderBy(F.desc("total_spend")).limit(20))
 
@@ -417,8 +423,18 @@ display(customer_ltv.orderBy(F.desc("total_spend")).limit(20))
 # ✏️ STUDENT EXERCISE
 # TODO: Calculate RFM scores using ntile (write the whole cell yourself)
 # - recency_score, frequency_score, monetary_score: ntile(5), 5 = best, ties broken on customer_id ascending
+customer_ltv_rfm = customer_ltv \
+    .withColumn("recency_score", F.ntile(5).over(Window.orderBy(F.desc("days_since_last_purchase"), "customer_id"))) \
+    .withColumn("frequency_score", F.ntile(5).over(Window.orderBy("total_orders", "customer_id"))) \
+    .withColumn("monetary_score", F.ntile(5).over(Window.orderBy("total_spend", "customer_id")))
+
+
+
 # - rfm_score: recency_score + frequency_score + monetary_score
+customer_ltv_rfm = customer_ltv_rfm \
+    .withColumn("rfm_score", F.col("recency_score") + F.col("frequency_score") + F.col("monetary_score"))
 # - display the top 20 by rfm_score
+display(customer_ltv_rfm.orderBy(F.desc("rfm_score")).limit(20))
 
 # COMMAND ----------
 
@@ -579,11 +595,11 @@ display(product_performance.orderBy(F.desc("total_revenue")).limit(20))
 # ✏️ STUDENT EXERCISE
 # TODO: Add ranking within category
 
-category_window = Window.partitionBy(   # TODO: partition by category, order by total_revenue desc
+category_window = Window.partitionBy("category").orderBy(F.desc("total_revenue"))
 
 product_performance_ranked = product_performance \
-    .withColumn("revenue_rank_in_category",   # TODO: use F.rank()
-    .withColumn("revenue_row_number",   # TODO: use F.row_number()
+    .withColumn("revenue_rank_in_category", F.rank().over(category_window)) \
+    .withColumn("revenue_row_number", F.row_number().over(category_window))
 
 display(product_performance_ranked.filter("revenue_rank_in_category <= 10").orderBy("category", "revenue_rank_in_category"))
 

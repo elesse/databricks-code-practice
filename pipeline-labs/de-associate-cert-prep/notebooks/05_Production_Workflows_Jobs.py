@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # Notebook 05: Production Workflows & Jobs
 # MAGIC
@@ -103,16 +107,16 @@
 # TODO: Create job parameter widgets
 
 # 1. Environment widget (text)
-dbutils.widgets.text(  # TODO
+dbutils.widgets.text("environment", "dev", "Environment (dev/staging/prod)") 
 
 # 2. Pipeline mode widget (dropdown)
-dbutils.widgets.dropdown(  # TODO
+dbutils.widgets.dropdown("pipeline_mode", "incremental", ["full", "incremental"], "Pipeline Mode")
 
 # 3. Date widget (text)
-dbutils.widgets.text(  # TODO
+dbutils.widgets.text("date", "", "Processing Date (YYYY-MM-DD, blank=today)")
 
 # 4. Quality checks widget (dropdown)
-dbutils.widgets.dropdown(  # TODO
+dbutils.widgets.dropdown("enable_quality_checks", "true", ["true", "false"], "Enable Quality Checks")
 
 print("✅ Widgets created")
 
@@ -264,6 +268,44 @@ print(f"\nValidation Result: {validation_result}")
 # ✏️ STUDENT EXERCISE
 # TODO: Write execute_task_with_retry(task_name, task_function, max_retries=3) from scratch
 # (the requirements are in the cell above; the test is in the cell after the solution)
+import json
+from datetime import datetime
+
+def execute_task_with_retry(task_name, task_function, max_retries=3):
+    """
+    Execute a task with automatic retry logic.
+    """
+    attempt = 0
+  
+    while attempt < max_retries:
+        try:
+            print(f"[{task_name}] Attempt {attempt + 1}/{max_retries}")
+          
+            result = task_function()
+          
+            return {
+                "status": "SUCCESS",
+                "task": task_name,
+                "attempt": attempt + 1,
+                "timestamp": datetime.now().isoformat(),
+                "result": result
+            }
+          
+        except Exception as e:
+            attempt += 1
+            error_msg = str(e)
+            print(f"[{task_name}] Error on attempt {attempt}: {error_msg}")
+            
+            if attempt >= max_retries:
+                return {
+                    "status": "FAILED",
+                    "task": task_name,
+                    "attempt": attempt,
+                    "timestamp": datetime.now().isoformat(),
+                    "error": error_msg
+                }
+          
+            print(f"[{task_name}] Retrying...")
 
 # COMMAND ----------
 

@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # Notebook 01: Environment Setup & Unity Catalog
 # MAGIC
@@ -141,9 +145,9 @@ managed_table_name = f"{CATALOG_NAME}.{BRONZE_SCHEMA}.customers_managed"
 
 # Write your code here:
 customers_df.write \
-
-
-
+    .format("delta") \
+    .mode("overwrite") \
+    .saveAsTable(managed_table_name)
 
 print(f"Created managed table: {managed_table_name}")
 
@@ -343,16 +347,20 @@ print("✅ Granted USE CATALOG and full access to data_engineers on bronze schem
 
 # ✏️ STUDENT EXERCISE
 # TODO: Grant read-only access to data analysts on Gold schema
-
 # 1. USE CATALOG on the catalog
-
+spark.sql(f"""
+    GRANT USE CATALOG ON CATALOG {CATALOG_NAME} TO `data_analysts`
+""")
 
 # 2. USE SCHEMA on gold schema
-
+spark.sql(f"""
+    GRANT USE SCHEMA ON SCHEMA {CATALOG_NAME}.{GOLD_SCHEMA} TO `data_analysts`
+""")
 
 # 3. SELECT on gold schema
-
-
+spark.sql(f"""
+    GRANT SELECT ON SCHEMA {CATALOG_NAME}.{GOLD_SCHEMA} TO `data_analysts`
+""")
 print("Granted read-only access to data_analysts on gold schema")
 
 # COMMAND ----------
@@ -401,15 +409,28 @@ print("Granted read-only access to data_analysts on gold schema")
 
 # ✏️ STUDENT EXERCISE
 # TODO: Grant read-only access to data scientists on Silver and Gold
-
 # 1. USE CATALOG on the catalog
-
+spark.sql(f"""
+    GRANT USE CATALOG ON CATALOG {CATALOG_NAME} TO `data_scientists`
+""")
 
 # 2. USE SCHEMA and SELECT on silver schema
+spark.sql(f"""
+    GRANT USE SCHEMA ON SCHEMA {CATALOG_NAME}.{SILVER_SCHEMA} TO `data_scientists`
+""")
 
+spark.sql(f"""
+    GRANT SELECT ON SCHEMA {CATALOG_NAME}.{SILVER_SCHEMA} TO `data_scientists`
+""")
 
 # 3. USE SCHEMA and SELECT on gold schema
+spark.sql(f"""
+    GRANT USE SCHEMA ON SCHEMA {CATALOG_NAME}.{GOLD_SCHEMA} TO `data_scientists`
+""")
 
+spark.sql(f"""
+    GRANT SELECT ON SCHEMA {CATALOG_NAME}.{GOLD_SCHEMA} TO `data_scientists`
+""")
 
 print("Granted read-only access to data_scientists on silver and gold")
 

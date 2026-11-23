@@ -1,5 +1,8 @@
 # Databricks notebook source
-# COMMAND ----------
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # Time Travel & Restore
 # MAGIC **Topic**: Delta Lake | **Exercises**: 7 | **Checkpoints**: 1 | **Total Time**: ~90 min
@@ -33,6 +36,7 @@
 # MAGIC %run ./setup/time-travel-setup
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC **Setup complete.** Every exercise table is in `db_code.time_travel`. Write your output tables there too, by full name (for example `db_code.time_travel.tt_ex1_result`). In Python cells, the variables `CATALOG` and `SCHEMA` hold `db_code` and `time_travel`. The base table (`orders`) is in `db_code.delta_lake`.
 # MAGIC
@@ -51,6 +55,7 @@
 # MAGIC **Note**: Auto compaction can add an `OPTIMIZE` version after an UPDATE or DELETE, so version numbers can shift. Version 0 is always the CREATE; never hardcode any other version number. Where you need a later version, the setup stores it in a variable: `TT_EX8_INSERT_V` in Exercise 8.
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Exercise 1: Query by Version Number
 # MAGIC **Difficulty**: Easy | **Time**: ~5 min
@@ -73,7 +78,14 @@
 # EXERCISE_KEY: tt_ex1
 # TODO: Query the table at version 0 and save to tt_ex1_result
 
-# Your code here
+(
+    spark.read
+    .option("versionAsOf", 0)
+    .table(f"{CATALOG}.{SCHEMA}.tt_ex1_orders")
+    .write
+    .mode("overwrite")
+    .saveAsTable(f"{CATALOG}.{SCHEMA}.tt_ex1_result")
+)
 
 
 # COMMAND ----------
@@ -88,6 +100,7 @@ assert result.filter("order_id = 'ORD-005'").count() == 1, \
 print("Exercise 1 passed!")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Exercise 2: Query by Timestamp
 # MAGIC **Difficulty**: Easy | **Time**: ~10 min
@@ -113,7 +126,7 @@ print("Exercise 1 passed!")
 # EXERCISE_KEY: tt_ex2
 # TODO: Look up the UPDATE operation's timestamp via DESCRIBE HISTORY, then query with TIMESTAMP AS OF and save to tt_ex2_result
 
-# Your code here
+spark.sql(f"DESCRIBE {CATALOG}.{SCHEMA}.tt_ex2_orders")
 
 
 # COMMAND ----------
@@ -130,6 +143,7 @@ assert result.filter("order_id = 'ORD-003'").select("amount").collect()[0][0] ==
 print("Exercise 2 passed!")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Checkpoint 3: DESCRIBE HISTORY
 # MAGIC **Time**: ~5 min
@@ -181,6 +195,7 @@ assert row.num_dml_operations == TT_EX3_DML_COUNT, \
 print("Checkpoint 3 passed!")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Exercise 4: RESTORE to Previous Version
 # MAGIC **Difficulty**: Medium | **Time**: ~10 min
@@ -222,6 +237,7 @@ assert _ops[0] == "RESTORE", f"The latest change to tt_ex4_orders is {_ops[0]}, 
 print("Exercise 4 passed!")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Exercise 5: Diff Two Versions
 # MAGIC **Difficulty**: Medium | **Time**: ~15 min
@@ -270,6 +286,7 @@ assert "ORD-101" in changed_ids, "ORD-101 was added and should be in changes"
 print("Exercise 5 passed!")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Exercise 6: Audit Trail
 # MAGIC **Difficulty**: Medium | **Time**: ~15 min
@@ -322,6 +339,7 @@ assert row.bad_version == TT_EX6_BAD_VERSION, \
 print("Exercise 6 passed!")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Exercise 7: Selective Undo via MERGE + Time Travel
 # MAGIC **Difficulty**: Hard | **Time**: ~20 min
@@ -374,6 +392,7 @@ assert result.filter("order_id = 'ORD-001'").collect()[0].status == "shipped", \
 print("Exercise 7 passed!")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Exercise 8: Reproducible Reporting with Time Travel
 # MAGIC **Difficulty**: Medium | **Time**: ~10 min
